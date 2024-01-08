@@ -17,57 +17,49 @@ def get_faiss_metric_type(metric_type):
         return faiss.METRIC_L1
     return faiss.METRIC_L2
 
+def get_name(size):
+    if size < 1000:
+        return f"{size}"
+    elif size < 1000000:
+        return f"{size // 1000}K"
+    else:
+        return f"{size // 1000000}M"
+
 class RetrieverBuilder(object):
     def __init__(
         self, 
         model_path, 
         data_dir=None, 
         output_dir='metadata', 
-        batch_size=32, 
         num_sentences_per_file=1000, 
         device_id=-1, 
+        do_split=True,
+        do_encode=True,
         verbose=False
     ):
         self.output_dir = output_dir
-        self.batch_size = batch_size
         self.verbose = verbose
         self.split_dir = os.path.join(self.output_dir, 'splits')
         self.emb_dir = os.path.join(self.output_dir, 'emb')
-        self.db_dir = os.path.join(self.output_dir, 'db')
-        self.index_dir = os.path.join(self.output_dir, 'index')
+        self.db_base_dir = os.path.join(self.output_dir, 'db')
+        self.index_base_dir = os.path.join(self.output_dir, 'index')
         self.meta_path = os.path.join(self.output_dir, 'metadata.json')
         self.device_id = device_id
         if not os.path.exists(self.output_dir):
             os.makedirs(self.output_dir)
-        if data_dir != None:
+        if do_split:
+            assert data_dir != None
             self._split_sentences(data_dir, num_sentences_per_file)
+        if do_encode:
             self._encode(model_path)
             with open(self.meta_path, 'w') as fout:
                 json.dump(self.metadata, fout)
-        else:
-            assert os.path.exists(self.meta_path)
-            with open(self.meta_path, 'r') as fin:
-                self.metadata = json.load(fin)
+        assert os.path.exists(self.meta_path)
+        with open(self.meta_path, 'r') as fin:
+            self.metadata = json.load(fin)
         if self.verbose:
             print(f'Embedding Information {self.metadata}')
 
-    def build(
-        self, 
-        index_type, 
-        metric_type,
-        train_ratio=0.1, 
-        least_num_train=1000000, 
-        sub_index_size=1000000
-    ):
-        self._build_db()
-        self._build_index(
-            index_type=index_type, 
-            metric_type=metric_type,
-            train_ratio=train_ratio, 
-            least_num_train=least_num_train, 
-            sub_index_size=sub_index_size
-        )
-    
     def __cut_sentence(self, document):
         sentences = []
         sentence = ''
@@ -150,29 +142,48 @@ class RetrieverBuilder(object):
             embeddings = model.encode(sentences)
             self.metadata['num_emb'] += embeddings.shape[0]
             self.metadata['emb_dim'] = embeddings.shape[1]
-            # num_batches = int(np.ceil(len(sentences) / self.batch_size))
-            # for batch_id in tqdm(range(num_batches), total=num_batches):
-            #     batch_l = batch_id * self.batch_size
-            #     batch_r = np.min(((batch_id + 1) * self.batch_size, len(sentences)))
-            #     batch_embs = model.encode(sentences[batch_l:batch_r])
-            #     self.metadata['num_emb'] += int(batch_r - batch_l)
-            #     if self.metadata['emb_dim']:
-            #         assert self.metadata['emb_dim'] == int(batch_embs.shape[1])
-            #     else:
-            #         self.metadata['emb_dim'] = int(batch_embs.shape[1])
-            #     embeddings.append(batch_embs)
-            # embeddings = np.concatenate(embeddings, axis=0).tolist()
             embeddings = embeddings.tolist()
             df.insert(0, 'embedding', embeddings)
             emb_path = os.path.join(self.emb_dir, f'{basename}.json.gz')
             df.to_json(emb_path, orient='records', lines=True, compression={'method': 'gzip', 'compresslevel': 5})
 
+    def build(
+        self, 
+        build_index,
+        build_db,
+        index_type, 
+        build_size=None,
+        metric_type="L2",
+        train_ratio=0.1, 
+        least_num_train=1000000, 
+        sub_index_size=1000000
+    ):
+        if build_size == None:
+            self.build_size = self.metadata["num_emb"]
+        else:
+            self.build_size = np.minimum(build_size, self.metadata["num_emb"])
+        if self.verbose:
+            print(f'{self.build_size} data are used to build the db and index')
+        dirname = get_name(self.build_size)
+        self.db_dir = os.path.join(self.db_base_dir, dirname)
+        self.index_dir = os.path.join(self.index_base_dir, dirname)
+        if build_db:
+            self._build_db()
+        if build_index:
+            self._build_index(
+                index_type=index_type, 
+                metric_type=metric_type,
+                train_ratio=train_ratio, 
+                least_num_train=least_num_train, 
+                sub_index_size=sub_index_size
+            )
+    
     def _build_db(self, map_size=200*1024*1024*1024):
         if self.verbose:
             print(f'Build the database')
         
         if not os.path.exists(self.db_dir):
-            os.mkdir(self.db_dir)
+            os.makedirs(self.db_dir)
         
         env = lmdb.open(self.db_dir, map_size=map_size)
         db_size = 0
@@ -194,32 +205,35 @@ class RetrieverBuilder(object):
         emb_files = glob(os.path.join(self.emb_dir, '*.json.gz'), recursive=True)
         emb_files.sort()
 
-        for emb_file in tqdm(emb_files):
+        for emb_file in emb_files:
             df = pd.read_json(emb_file, orient='records', lines=True, compression={'method': 'gzip', 'compresslevel': 5})
 
             txn = env.begin(write=True)
             for i, row in df.iterrows():
                 txn.put(
-                str(db_size).encode(),
-                pickle.dumps({
-                    'text': row['text'],
-                    'embedding': row['embedding']
-                })
+                    str(db_size).encode(),
+                    pickle.dumps({
+                        'text': row['text']
+                    })
                 )
                 db_size += 1
+                if db_size >= self.build_size:
+                    break
             txn.commit()
+            if self.verbose:
+                print(f'Build the db ({db_size}/{self.build_size})')
+            if db_size >= self.build_size:
+                break
         env.close()
 
-        self.metadata['db_path'] = self.db_dir
-        self.metadata['db_size'] = db_size
         if self.verbose:
             print(f'Database size {db_size}')
 
     def __sample_train_data(self, train_ratio, least_num_train):
-        num_train = int(self.metadata['num_emb'] * train_ratio)
-        num_train = np.max((num_train, np.min((self.metadata['num_emb'], least_num_train))))
+        num_train = int(self.build_size * train_ratio)
+        num_train = np.max((num_train, np.min((self.build_size, least_num_train))))
         
-        train_idx = np.arange(self.metadata['num_emb'])
+        train_idx = np.arange(self.build_size)
         np.random.shuffle(train_idx)
         train_idx = train_idx[:num_train]
         train_idx.sort()
@@ -244,6 +258,8 @@ class RetrieverBuilder(object):
             idx_count += embeddings.shape[0]
             assert self.metadata['emb_dim'] == embeddings.shape[1]
             del embeddings
+            if idx_count >= self.build_size:
+                break
         
         train_embs = np.concatenate(train_embs, axis=0).astype('float32')
         assert train_embs.shape[0] == num_train, f'sample {train_embs.shape[0]} training data but {num_train} data are required'
@@ -286,7 +302,7 @@ class RetrieverBuilder(object):
             print(f'Build the index [{index_type}]')
         
         if not os.path.exists(self.index_dir):
-            os.mkdir(self.index_dir)
+            os.makedirs(self.index_dir)
 
         index_path_prefix = index_type.lower().replace(',', '-').replace('_', '-')
         index_path_prefix = index_path_prefix + '-' + metric_type.lower().replace(',', '-').replace('_', '-')
@@ -306,12 +322,24 @@ class RetrieverBuilder(object):
         emb_files = glob(os.path.join(self.emb_dir, '*.json.gz'))
         emb_files.sort()
 
+        need_built = self.build_size
         num_sub_indexes = 0
         buffer_embs = []
         buffer_size = 0
-        for i, emb_file in tqdm(enumerate(emb_files), total=len(emb_files)):
+        for i, emb_file in enumerate(emb_files):
             df = pd.read_json(emb_file, orient='records', lines=True, compression={'method': 'gzip', 'compresslevel': 5})
             embeddings = np.array([d for d in df['embedding'].values]).squeeze().astype('float32')
+            if need_built > embeddings.shape[0]:
+                need_built -= embeddings.shape[0]
+                if self.verbose:
+                    print(f'Build the index ({self.build_size - need_built}/{self.build_size})')
+            elif need_built > 0:
+                embeddings = embeddings[:need_built, :]
+                need_built = 0
+                if self.verbose:
+                    print(f'Build the index ({self.build_size - need_built}/{self.build_size})')
+            else:
+                break
             
             buffer_embs.append(embeddings)
             buffer_size += embeddings.shape[0]
@@ -338,16 +366,19 @@ class RetrieverBuilder(object):
         
         index_path = index_path_prefix + f'.index'
         faiss.write_index(trained_index, index_path)
-        self.metadata['index_path'] = index_path
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--model_path', type=str, default=None)
     parser.add_argument('--data_dir', type=str, default=None)
     parser.add_argument('--output_dir', type=str, required=True)
-    parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--num_sentences_per_file', type=int, default=1000000)
     parser.add_argument('--device_id', type=int, default=0)
+    parser.add_argument('--do_split', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--num_sentences_per_file', type=int, default=1000000)
+    parser.add_argument('--do_encode', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--build_size', type=int, default=100000)
+    parser.add_argument('--build_db', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--build_index', action=argparse.BooleanOptionalAction)
     parser.add_argument('--train_ratio', type=float, default=0.2)
     parser.add_argument('--least_num_train', type=int, default=1000)
     parser.add_argument('--index_type', type=str, required=True)
@@ -361,13 +392,17 @@ if __name__ == '__main__':
         args.model_path, 
         data_dir=args.data_dir, 
         output_dir=args.output_dir, 
-        batch_size=args.batch_size, 
         num_sentences_per_file=args.num_sentences_per_file, 
         device_id=args.device_id,
+        do_split=args.do_split,
+        do_encode=args.do_encode,
         verbose=args.verbose
     )
     builder.build(
+        args.build_index,
+        args.build_db,
         index_type=args.index_type, 
+        build_size=args.build_size,
         metric_type=args.metric_type,
         train_ratio=args.train_ratio,
         least_num_train=args.least_num_train,
