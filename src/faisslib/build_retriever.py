@@ -243,7 +243,7 @@ class RetrieverBuilder(object):
 
         train_embs = []
         idx_count = 0
-        for emb_file in tqdm(emb_files):
+        for emb_file in emb_files:
             df = pd.read_json(emb_file, orient='records', lines=True, compression={'method': 'gzip', 'compresslevel': 5})
 
             embeddings = np.array([d for d in df['embedding'].values]).astype('float32')
@@ -258,6 +258,7 @@ class RetrieverBuilder(object):
             idx_count += embeddings.shape[0]
             assert self.metadata['emb_dim'] == embeddings.shape[1]
             del embeddings
+            print(f'Sample training data ({idx_count}/{self.build_size})')
             if idx_count >= self.build_size:
                 break
         
