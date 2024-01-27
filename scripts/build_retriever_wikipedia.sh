@@ -11,9 +11,9 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --output_dir $PROJECT_DIR/metadata/wikipedia-split \
     --device_id 0 \
     --do_chunk \
-    --num_chunks_per_file 1000000 \
-    --batch_size 512 \
     --do_encode \
+    --num_chunks_per_file 1000000 \
+    --batch_size 768 \
 
 echo 'Build DB and index based on 100K data'
 CUDA_VISIBLE_DEVICES=$DEVICE \
