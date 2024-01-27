@@ -11,6 +11,11 @@ from glob import glob
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+    datefmt="%m/%d/%Y %H:%M:%S",
+    level=logging.INFO
+)
 
 def get_faiss_metric_type(metric_type):
     if metric_type == 'inner_product':
@@ -52,7 +57,12 @@ class RetrieverBuilder(object):
             assert data_dir != None
             self._chunk(data_dir, num_chunks_per_file)
         if do_encode:
-            self._encode(model_path, batch_size=batch_size)
+            if self.device_id >= 0:
+                model = SentenceTransformer(model_path, device=f'cuda:{self.device_id}')
+            else:
+                model = SentenceTransformer(model_path, device=f'cpu')
+            self._encode(model, batch_size=batch_size)
+            del model
             with open(self.meta_path, 'w') as fout:
                 json.dump(self.metadata, fout)
         assert os.path.exists(self.meta_path)
@@ -134,16 +144,11 @@ class RetrieverBuilder(object):
                 df.to_json(split_path, orient='records', lines=True)
                 num_splits += 1
 
-    def _encode(self, model_path, batch_size=32):
+    def _encode(self, model, batch_size=32):
         logger.info(f'Encode the data in {self.split_dir}')
         if not os.path.exists(self.emb_dir):
             os.mkdir(self.emb_dir)
         
-        if self.device_id >= 0:
-            model = SentenceTransformer(model_path, device=f'cuda:{self.device_id}')
-        else:
-            model = SentenceTransformer(model_path, device=f'cpu')
-
         self.metadata = {'num_emb': 0, 'emb_dim': 0}
         split_files = self.__get_split_files()
         for i, split_file in enumerate(split_files):
@@ -167,7 +172,8 @@ class RetrieverBuilder(object):
         self, 
         build_index,
         build_db,
-        index_type, 
+        index_type,
+        task=None, 
         build_size=None,
         metric_type='L2',
         train_ratio=0.1, 
@@ -183,7 +189,7 @@ class RetrieverBuilder(object):
         self.db_dir = os.path.join(self.db_base_dir, dirname)
         self.index_dir = os.path.join(self.index_base_dir, dirname)
         if build_db:
-            self._build_db()
+            self._build_db(task=task)
         if build_index:
             self._build_index(
                 index_type=index_type, 
@@ -222,7 +228,7 @@ class RetrieverBuilder(object):
             # Store data based on different tasks
             # TODO: the belowing codes need to be modularized for better generability
             txn = env.begin(write=True)
-            if task == 'next_token':
+            if task == 'next-token':
                 for j, row in df.iterrows():
                     if i + j == 0:
                         last_row = row
@@ -428,6 +434,7 @@ if __name__ == '__main__':
     parser.add_argument('--build_size', type=int, default=None)
     parser.add_argument('--build_db', action=argparse.BooleanOptionalAction)
     parser.add_argument('--build_index', action=argparse.BooleanOptionalAction)
+    parser.add_argument('--task', type=str, default=None)
     parser.add_argument('--train_ratio', type=float, default=0.2)
     parser.add_argument('--least_num_train', type=int, default=1000)
     parser.add_argument('--index_type', type=str, default='IVF65536_HNSW32,PQ64')
@@ -450,6 +457,7 @@ if __name__ == '__main__':
         args.build_index,
         args.build_db,
         index_type=args.index_type, 
+        task=args.task,
         build_size=args.build_size,
         metric_type=args.metric_type,
         train_ratio=args.train_ratio,

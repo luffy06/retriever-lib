@@ -26,6 +26,7 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --build_size 100000 \
     --build_db \
     --build_index \
+    --task next-token \
     --train_ratio 0.2 \
     --least_num_train 1000 \
     --index_type IVF1265_HNSW32,PQ64 \
