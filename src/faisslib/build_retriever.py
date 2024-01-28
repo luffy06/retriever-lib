@@ -85,12 +85,12 @@ class RetrieverBuilder(object):
         emb_files.sort(key=lambda emb_file: int(emb_file.split('/')[-1].removesuffix('.json.gz').split('-')[-1]))
         return emb_files
 
-    def __chunk_by_sentence(self, document, stopping_words=['.', '! ']):
+    def __chunk_by_sentence(self, document, end_words=['.', '! ']):
         chunks = []
         chunk = ''
         for i, w in enumerate(document):
             chunk += w
-            if any([w.endswith(sw) for sw in stopping_words]):
+            if any([w.endswith(sw) for sw in end_words]):
                 if i != len(document) - 1 \
                     and (document[i + 1] == ' ' or document[i + 1] == '\n'):
                     chunks.append(chunk.strip())
@@ -163,10 +163,10 @@ class RetrieverBuilder(object):
             self.metadata['num_emb'] += embeddings.shape[0]
             self.metadata['emb_dim'] = embeddings.shape[1]
             # Save embeddings
-            embeddings = embeddings.tolist()
-            df.insert(0, 'embedding', embeddings)
+            df.insert(0, 'embedding', embeddings.tolist())
             emb_path = os.path.join(self.emb_dir, f'{basename}.json.gz')
             df.to_json(emb_path, orient='records', lines=True, compression={'method': 'gzip', 'compresslevel': 5})
+            del embeddings
 
     def build(
         self, 

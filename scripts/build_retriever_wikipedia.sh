@@ -13,7 +13,7 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --do_chunk \
     --do_encode \
     --num_chunks_per_file 1000000 \
-    --batch_size 768 \
+    --batch_size 256 \
 
 echo 'Build DB and index based on 100K data'
 CUDA_VISIBLE_DEVICES=$DEVICE \

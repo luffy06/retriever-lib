@@ -11,9 +11,10 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --model_path $ENCODER_PATH \
     --output_dir $PROJECT_DIR/metadata/wikitext-103-$SPLIT \
     --device_id 0 \
+    --do_chunk \
     --do_encode \
     --num_chunks_per_file 1000000 \
-    --batch_size 768 \
+    --batch_size 256 \
 
 echo 'Build DB and index based on wikitext-103 '$SPLIT' data'
 CUDA_VISIBLE_DEVICES=$DEVICE \
