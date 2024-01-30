@@ -180,14 +180,18 @@ class RetrieverBuilder(object):
         least_num_train=1000000, 
         sub_index_size=1000000
     ):
+        if build_size != None:
+            dirname = get_name(build_size)
+            self.db_dir = os.path.join(self.db_base_dir, dirname)
+            self.index_dir = os.path.join(self.index_base_dir, dirname)
+        else:
+            self.db_dir = self.db_base_dir
+            self.index_dir = self.index_base_dir
         if build_size == None:
             self.build_size = self.metadata['num_emb']
         else:
             self.build_size = np.minimum(build_size, self.metadata['num_emb'])
         logger.info(f'{self.build_size} data are used to build the db and index')
-        dirname = get_name(self.build_size)
-        self.db_dir = os.path.join(self.db_base_dir, dirname)
-        self.index_dir = os.path.join(self.index_base_dir, dirname)
         if build_db:
             self._build_db(task=task)
         if build_index:
