@@ -28,9 +28,9 @@ def get_name(size):
     if size < 1000:
         return f'{size}'
     elif size < 1000000:
-        return f'{size // 1000}K'
+        return f'{size // 1000}k'
     else:
-        return f'{size // 1000000}M'
+        return f'{size // 1000000}m'
 
 class RetrieverBuilder(object):
     def __init__(
