@@ -82,6 +82,7 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --metric_type L2 \
     --sub_index_size 10000 \
 ```
+You can refer to the [guidelines](https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index) to choose the index type.
 
 Overall, to pipeline the whole process, you can directly run the follow script for different corpus,
 ```bash
