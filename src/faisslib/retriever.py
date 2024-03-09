@@ -94,7 +94,7 @@ class Retriever(object):
                 neighbors['emb'] = np.expand_dims(np.concatenate(neighbors['emb'], axis=0), axis=0)
             # Store neighbors of the i-th query
             all_neighbors[query_i] = neighbors
-            return all_neighbors
+        return all_neighbors
     
     def save_in_cache(self, neighbors):
         self.cache = neighbors
