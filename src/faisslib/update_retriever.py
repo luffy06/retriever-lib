@@ -1,4 +1,5 @@
 import os
+import json
 import lmdb
 import pickle
 import argparse
@@ -22,13 +23,13 @@ def get_embeddings(model_name, embeddings):
     else:
         return embeddings[:, -1, :]
 
-def update_retriever(path, new_path, model_name, batch_size=32, device='cpu'):    
+def update_retriever(path, new_path, model_name, max_length, batch_size=32, device='cpu'):    
     # Open the LMDB environment
     env_old = lmdb.open(os.path.join(path, 'db'), readonly=False)
     # Open the new LMDB environment
     if not os.path.exists(os.path.join(new_path, 'db')):
         os.makedirs(os.path.join(new_path, 'db'))
-    env_new = lmdb.open(os.path.join(new_path, 'db'), readonly=False, map_size=1099511627776)
+    env_new = lmdb.open(os.path.join(new_path, 'db'), readonly=False, map_size=200*1024*1024*1024)
 
     # Load the model based on the provided model_name
     model = AutoModel.from_pretrained(model_name)
@@ -44,6 +45,7 @@ def update_retriever(path, new_path, model_name, batch_size=32, device='cpu'):
     # Iterate over all the keys in the LMDB
     cursor = txn_old.cursor()
     idx = 0
+    emb_dim = None
     for key, value in tqdm(cursor, total=txn_old.stat()['entries']):
         # Deserialize the value (assuming it's stored as a pickled object)
         value = pickle.loads(value)
@@ -52,10 +54,11 @@ def update_retriever(path, new_path, model_name, batch_size=32, device='cpu'):
         if len(batch["keys"]) == batch_size or idx == txn_old.stat()['entries'] - 1:
             texts = [value['text'] for value in batch["values"]]
             # Generate a new embedding using the last hidden states of the model
-            inputs = tokenizer(texts, return_tensors='pt', padding=True, truncation=True).to(device)
+            inputs = tokenizer(texts, return_tensors='pt', max_length=max_length, padding=True, truncation=True, add_special_tokens=True).to(device)
             outputs = model(**inputs)
             last_hidden_states = outputs.last_hidden_state
             new_embeddings = get_embeddings(model_name.split('/')[-1], last_hidden_states.detach().cpu().numpy())
+            emb_dim = new_embeddings.shape[-1]
             # Update the values with the new embeddings
             for i, key in enumerate(batch["keys"]):
                 batch["values"][i]['embedding'] = new_embeddings[i]
@@ -65,16 +68,23 @@ def update_retriever(path, new_path, model_name, batch_size=32, device='cpu'):
             batch = {"keys": [], "values": []}
             del inputs, outputs, last_hidden_states, new_embeddings
         idx += 1
+    assert idx == txn_old.stat()['entries']
+    assert txn_new.stat()['entries'] == txn_old.stat()['entries']
 
+    txn_new.commit()
     # Close the LMDB environment
     env_old.close()
     env_new.close()
 
-    # if not os.path.exists(os.path.join(new_path, 'index')):
-    #     os.makedirs(os.path.join(new_path, 'index'))
+    if not os.path.exists(os.path.join(new_path, 'index')):
+        os.makedirs(os.path.join(new_path, 'index'))
 
-    # # Copy the index file from the source path to the target path
-    # os.system(f'cp {path}/index/* {new_path}/index')
+    # Copy the index file from the source path to the target path
+    os.system(f'cp {path}/index/* {new_path}/index')
+
+    metadata = json.load(open(os.path.join(path, 'metadata.json')))
+    metadata['emb_dim'] = emb_dim
+    json.dump(metadata, open(os.path.join(new_path, 'metadata.json')))
 
 if __name__ == "__main__":
     # Parse command line arguments
@@ -83,6 +93,7 @@ if __name__ == "__main__":
     parser.add_argument("--target_path", type=str, help="Path to the target retriever", required=True)
     parser.add_argument("--model_name", type=str, help="Name of the new model")
     parser.add_argument("--batch_size", type=int, help="Batch size for the model", default=32)
+    parser.add_argument("--max_length", type=int, help="Maximum length of the input sequence", default=512)
     parser.add_argument("--device", type=str, help="Device to run the model on", default='cpu')
     args = parser.parse_args()
 
@@ -91,4 +102,4 @@ if __name__ == "__main__":
         os.makedirs(args.target_path)
 
     # Call the update_retriever function with the provided arguments
-    update_retriever(args.source_path, args.target_path, args.model_name, args.batch_size, args.device)
+    update_retriever(args.source_path, args.target_path, args.model_name, args.max_length, args.batch_size, args.device)
