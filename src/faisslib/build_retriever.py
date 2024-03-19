@@ -173,37 +173,38 @@ class RetrieverBuilder(object):
         build_index,
         build_db,
         index_type,
-        task=None, 
+        map_size=200*1024*1024*1024,
         build_size=None,
         metric_type='L2',
+        max_train_size=None,
         train_ratio=0.1, 
         least_num_train=1000000, 
         sub_index_size=1000000
     ):
         if build_size != None:
             dirname = get_name(build_size)
-            self.db_dir = os.path.join(self.db_base_dir, dirname)
-            self.index_dir = os.path.join(self.index_base_dir, dirname)
         else:
-            self.db_dir = self.db_base_dir
-            self.index_dir = self.index_base_dir
+            dirname = 'all'
+        self.db_dir = os.path.join(self.db_base_dir, dirname)
+        self.index_dir = os.path.join(self.index_base_dir, dirname)
         if build_size == None:
             self.build_size = self.metadata['num_emb']
         else:
             self.build_size = np.minimum(build_size, self.metadata['num_emb'])
         logger.info(f'{self.build_size} data are used to build the db and index')
         if build_db:
-            self._build_db(task=task)
+            self._build_db(map_size=map_size)
         if build_index:
             self._build_index(
                 index_type=index_type, 
                 metric_type=metric_type,
+                max_train_size=max_train_size,
                 train_ratio=train_ratio, 
                 least_num_train=least_num_train, 
                 sub_index_size=sub_index_size
             )
     
-    def _build_db(self, task='next_token', map_size=200*1024*1024*1024):
+    def _build_db(self, map_size=200*1024*1024*1024):
         logger.info(f'Build the database')
         if not os.path.exists(self.db_dir):
             os.makedirs(self.db_dir)
@@ -229,58 +230,33 @@ class RetrieverBuilder(object):
         for i, emb_file in enumerate(emb_files):
             # Load embeddings
             df = pd.read_json(emb_file, orient='records', lines=True, compression={'method': 'gzip', 'compresslevel': 5})
-            # Store data based on different tasks
-            # TODO: the belowing codes need to be modularized for better generability
+            # Store data to the database
             txn = env.begin(write=True)
-            if task == 'next-token':
-                for j, row in df.iterrows():
-                    if i + j == 0:
-                        last_row = row
-                    else:
-                        txn.put(
-                            str(db_size).encode(),
-                            pickle.dumps({
-                                'text': last_row['text'] + row['text']
-                            })
-                        )
-                        last_row = row
-                        db_size += 1
-                        if db_size >= self.build_size:
-                            break
-            else:
-                for j, row in df.iterrows():
-                    txn.put(
-                        str(db_size).encode(),
-                        pickle.dumps({
-                            'text': row['text'],
-                            'embedding': row['embedding']
-                        })
-                    )
-                    db_size += 1
-                    if db_size >= self.build_size:
-                        break
+            for j, row in df.iterrows():
+                txn.put(
+                    str(db_size).encode(),
+                    pickle.dumps({
+                        'text': row['text'],
+                        'embedding': row['embedding']
+                    })
+                )
+                db_size += 1
+                if db_size >= self.build_size:
+                    break
             txn.commit()
             logger.info(f'Build the db ({db_size}/{self.build_size})')
             if db_size >= self.build_size:
                 break
-        # Corner case for next-token task
-        if task == 'next_token' and db_size < self.build_size:
-            txn = env.begin(write=True)
-            txn.put(
-                str(db_size).encode(),
-                pickle.dumps({
-                    'text': last_row['text']
-                })
-            )
-            db_size += 1
-            txn.commit()
         env.close()
         logger.info(f'Finish builing the database, size {db_size}')
 
-    def __sample_train_data(self, train_ratio, least_num_train):
-        # Compute the number of data for training the index
-        num_train = int(self.build_size * train_ratio)
-        num_train = np.max((num_train, np.min((self.build_size, least_num_train))))
+    def __sample_train_data(self, max_train_size, train_ratio, least_num_train):
+        if max_train_size != None:
+            num_train = np.min((max_train_size, self.build_size))
+        else:
+            # Compute the number of data for training the index
+            num_train = int(self.build_size * train_ratio)
+            num_train = np.max((num_train, np.min((self.build_size, least_num_train))))
         logger.info(f'Sample {num_train} data for training')
         # Create training index across multiple embedding files
         train_idx = np.arange(self.build_size)
@@ -438,7 +414,8 @@ if __name__ == '__main__':
     parser.add_argument('--build_size', type=int, default=None)
     parser.add_argument('--build_db', action=argparse.BooleanOptionalAction)
     parser.add_argument('--build_index', action=argparse.BooleanOptionalAction)
-    parser.add_argument('--task', type=str, default=None)
+    parser.add_argument('--map_size', type=int, default=200*1024*1024*1024)
+    parser.add_argument('--max_train_size', type=int, default=None)
     parser.add_argument('--train_ratio', type=float, default=0.2)
     parser.add_argument('--least_num_train', type=int, default=1000)
     parser.add_argument('--index_type', type=str, default='IVF65536_HNSW32,PQ64')
@@ -461,9 +438,10 @@ if __name__ == '__main__':
         args.build_index,
         args.build_db,
         index_type=args.index_type, 
-        task=args.task,
+        map_size=args.map_size,
         build_size=args.build_size,
         metric_type=args.metric_type,
+        max_train_size=args.max_train_size,
         train_ratio=args.train_ratio,
         least_num_train=args.least_num_train,
         sub_index_size=args.sub_index_size
