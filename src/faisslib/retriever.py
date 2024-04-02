@@ -17,15 +17,13 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-class Retriever(object):
-    def __init__(self, retriever_dir, nprobe, topk=1, corpus_size=None, device_id=-1, index_path=None):
+class FaissRetriever(object):
+    def __init__(self, retriever_dir, nprobe, topk=1, device_id=-1, index_path=None):
         # Load metadata
         with open(os.path.join(retriever_dir, 'metadata.json'), 'r') as fin:
             self.metadata = json.load(fin)
         # Create the database
         db_path = self.metadata['db_path'] if 'db_path' in self.metadata else os.path.join(retriever_dir, 'db')
-        if corpus_size != None:
-            db_path = os.path.join(db_path, corpus_size)
         self.env = lmdb.open(db_path, readonly=True, readahead=True)
         # The index path is not given, use the default index path
         if index_path == None:
@@ -33,8 +31,6 @@ class Retriever(object):
                 index_path = self.metadata['index_path']
             else: # Use the default index path
                 index_dir = os.path.join(retriever_dir, 'index')
-                if corpus_size != None:
-                    index_dir = os.path.join(index_dir, corpus_size)
                 index_path = glob(os.path.join(index_dir, '*.index'))[0]
         # Create the index
         self.index = faiss.read_index(index_path, faiss.IO_FLAG_MMAP)
@@ -108,17 +104,15 @@ if __name__ == '__main__':
     parser.add_argument('--nprobe', type=int, default=512)
     parser.add_argument('--device_id', type=int, default=-1)
     parser.add_argument('--topk', type=int, default=2)
-    parser.add_argument('--corpus_size', type=str, default=None)
     parser.add_argument('--batch_size', type=int, default=50)
     parser.add_argument('--verbose', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     logger.info(f'Parameters {args}')
 
-    retriever = Retriever(
+    retriever = FaissRetriever(
         retriever_dir=args.retriever_dir, 
         nprobe=args.nprobe, 
         topk=args.topk, 
-        corpus_size=args.corpus_size, 
         device_id=args.device_id
     )
     logger.info(f'Finish loading the retriever')
