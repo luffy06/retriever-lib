@@ -12,6 +12,6 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --source_path $SOURCE_PATH \
     --target_path $TARGET_PATH \
     --model_name $ENCODER_PATH \
-    --batch_size 4 \
+    --batch_size 2 \
     --max_length 8192 \
     --device $DEVICE

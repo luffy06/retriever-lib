@@ -85,7 +85,7 @@ def update_retriever(path, new_path, model_name, max_length, batch_size=32, devi
 
     metadata = json.load(open(os.path.join(path, 'metadata.json')))
     metadata['emb_dim'] = emb_dim
-    json.dump(metadata, open(os.path.join(new_path, 'metadata.json')))
+    json.dump(metadata, open(os.path.join(new_path, 'metadata.json'), 'w'))
 
 if __name__ == "__main__":
     # Parse command line arguments
