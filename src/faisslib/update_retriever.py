@@ -35,6 +35,7 @@ def update_retriever(path, new_path, model_name, max_length, batch_size=32, devi
     model = AutoModel.from_pretrained(model_name)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = model.to(device)
+    model.eval()
 
     # Begin a write transaction
     txn_old = env_old.begin(write=False)
@@ -84,7 +85,7 @@ def update_retriever(path, new_path, model_name, max_length, batch_size=32, devi
 
     metadata = json.load(open(os.path.join(path, 'metadata.json')))
     metadata['emb_dim'] = emb_dim
-    json.dump(metadata, open(os.path.join(new_path, 'metadata.json')))
+    json.dump(metadata, open(os.path.join(new_path, 'metadata.json'), 'w'))
 
 if __name__ == "__main__":
     # Parse command line arguments
@@ -94,12 +95,17 @@ if __name__ == "__main__":
     parser.add_argument("--model_name", type=str, help="Name of the new model")
     parser.add_argument("--batch_size", type=int, help="Batch size for the model", default=32)
     parser.add_argument("--max_length", type=int, help="Maximum length of the input sequence", default=512)
-    parser.add_argument("--device", type=str, help="Device to run the model on", default='cpu')
+    parser.add_argument("--device", type=str, help="Device to run the model on", default=-1)
     args = parser.parse_args()
 
     # Check if target_path directory exists, if not, create it
     if not os.path.exists(args.target_path):
         os.makedirs(args.target_path)
+
+    if args.device != -1:
+        args.device = 'cuda' if args.device == 'gpu' else f'cuda:{args.device}'
+    else:
+        args.device = 'cpu'
 
     # Call the update_retriever function with the provided arguments
     update_retriever(args.source_path, args.target_path, args.model_name, args.max_length, args.batch_size, args.device)

@@ -32,7 +32,7 @@ def get_name(size):
     else:
         return f'{size // 1000000}m'
 
-class RetrieverBuilder(object):
+class FaissRetrieverBuilder(object):
     def __init__(
         self, 
         model_path, 
@@ -185,8 +185,8 @@ class RetrieverBuilder(object):
             dirname = get_name(build_size)
         else:
             dirname = 'all'
-        self.db_dir = os.path.join(self.db_base_dir, dirname)
-        self.index_dir = os.path.join(self.index_base_dir, dirname)
+        self.db_dir = os.path.join(self.output_dir, os.path.join(dirname, 'db'))
+        self.index_dir = os.path.join(self.output_dir, os.path.join(dirname, 'index'))
         if build_size == None:
             self.build_size = self.metadata['num_emb']
         else:
@@ -425,7 +425,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     logger.info(f'Parameters {args}')
 
-    builder = RetrieverBuilder(
+    builder = FaissRetrieverBuilder(
         args.model_path, 
         data_dir=args.data_dir, 
         output_dir=args.output_dir, 
