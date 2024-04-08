@@ -206,6 +206,7 @@ class FaissRetrieverBuilder(object):
             )
         if not os.path.exists(self.meta_path):
             with open(self.meta_path, 'w') as fout:
+                self.metadata['num_emb'] = self.build_size
                 json.dump(self.metadata, fout)
     
     def _build_db(self, map_size=200*1024*1024*1024):
@@ -229,7 +230,6 @@ class FaissRetrieverBuilder(object):
                     txn.delete(key)
             db_size = 0
 
-        last_row = None
         emb_files = self.__get_embedding_files()
         for i, emb_file in enumerate(emb_files):
             # Load embeddings
