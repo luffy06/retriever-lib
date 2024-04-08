@@ -334,6 +334,7 @@ class FaissRetrieverBuilder(object):
         self, 
         index_type, 
         metric_type,
+        max_train_size,
         train_ratio, 
         least_num_train, 
         sub_index_size
@@ -347,7 +348,7 @@ class FaissRetrieverBuilder(object):
         index_path_prefix = os.path.join(self.index_dir, index_path_prefix)
         trained_index_path = index_path_prefix + '.trained'
         # Sample training data
-        train_embs = self.__sample_train_data(train_ratio, least_num_train)
+        train_embs = self.__sample_train_data(max_train_size, train_ratio, least_num_train)
         # Train the index
         self.__train_index(train_embs, index_type, metric_type, trained_index_path)
 
@@ -418,7 +419,7 @@ if __name__ == '__main__':
     parser.add_argument('--build_size', type=int, default=None)
     parser.add_argument('--build_db', action=argparse.BooleanOptionalAction)
     parser.add_argument('--build_index', action=argparse.BooleanOptionalAction)
-    parser.add_argument('--map_size', type=int, default=200*1024*1024*1024)
+    parser.add_argument('--map_size', type=int, default=800*1024*1024*1024)
     parser.add_argument('--max_train_size', type=int, default=None)
     parser.add_argument('--train_ratio', type=float, default=0.2)
     parser.add_argument('--least_num_train', type=int, default=1000)
