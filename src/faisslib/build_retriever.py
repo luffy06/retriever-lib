@@ -187,6 +187,7 @@ class FaissRetrieverBuilder(object):
             dirname = 'all'
         self.db_dir = os.path.join(self.output_dir, os.path.join(dirname, 'db'))
         self.index_dir = os.path.join(self.output_dir, os.path.join(dirname, 'index'))
+        self.meta_path = os.path.join(self.output_dir, os.path.join(dirname, 'metadata.json'))
         if build_size == None:
             self.build_size = self.metadata['num_emb']
         else:
@@ -203,6 +204,9 @@ class FaissRetrieverBuilder(object):
                 least_num_train=least_num_train, 
                 sub_index_size=sub_index_size
             )
+        if not os.path.exists(self.meta_path):
+            with open(self.meta_path, 'w') as fout:
+                json.dump(self.metadata, fout)
     
     def _build_db(self, map_size=200*1024*1024*1024):
         logger.info(f'Build the database')
