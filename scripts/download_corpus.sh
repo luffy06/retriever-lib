@@ -1,4 +1,4 @@
-PROJECT_DIR=/home/wsy/Project/retriever-lib
+PROJECT_DIR=$(dirname "$(dirname "$(realpath "$0")")")
 DATA_DIR=$PROJECT_DIR/corpus/original
 OUTPUT_DIR=$PROJECT_DIR/corpus/formatted
 CACHE_DIR=$DATA_DIR/.cache
