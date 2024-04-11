@@ -51,7 +51,7 @@ class FaissRetriever(object):
 
     def search(self, query_embs, post_process_func=None):
         assert type(query_embs) == np.ndarray, f'query embeddings should be np.ndarray type'
-        assert len(query_embs) != 2, f'query embeddings should be 2D arrays'
+        assert len(query_embs.shape) == 2, f'query embeddings should be 2D arrays'
         if query_embs.dtype != np.dtype('float32'):
             logger.warn(f'Changing the data type from {query_embs.dtype} to float32')
             query_embs = query_embs.astype('float32')
