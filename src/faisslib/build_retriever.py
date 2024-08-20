@@ -58,9 +58,12 @@ class FaissRetrieverBuilder(object):
             self._chunk(data_dir, num_chunks_per_file)
         if do_encode:
             if self.device_id >= 0:
-                model = SentenceTransformer(model_path, device=f'cuda:{self.device_id}')
+                model = SentenceTransformer(model_path, device=f'cuda')
             else:
                 model = SentenceTransformer(model_path, device=f'cpu')
+            # For the first time, encode a dummy sentence to load the model
+            model.encode(['Hello, World!'], batch_size=1)
+            logger.info(f'Model device: {model.device}')
             self._encode(model, batch_size=batch_size)
             del model
             with open(self.meta_path, 'w') as fout:
