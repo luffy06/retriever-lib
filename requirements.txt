@@ -1,6 +1,6 @@
 faiss_gpu==1.7.2
 lmdb==1.4.1
-numpy==2.1.0
+numpy==1.26.4
 pandas==2.2.2
 sentence_transformers==2.2.2
 tqdm==4.66.1

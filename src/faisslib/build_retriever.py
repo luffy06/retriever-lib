@@ -49,6 +49,7 @@ class FaissRetrieverBuilder(object):
         self.emb_dir = os.path.join(self.output_dir, 'emb')
         self.db_base_dir = os.path.join(self.output_dir, 'db')
         self.index_base_dir = os.path.join(self.output_dir, 'index')
+        self.value_dir = os.path.join(self.output_dir, 'value')
         self.meta_path = os.path.join(self.output_dir, 'metadata.json')
         self.device_id = device_id
         if not os.path.exists(self.output_dir):
@@ -182,7 +183,8 @@ class FaissRetrieverBuilder(object):
         max_train_size=None,
         train_ratio=0.1, 
         least_num_train=1000000, 
-        sub_index_size=1000000
+        sub_index_size=1000000,
+        use_embeddings_as_values=False,
     ):
         if build_size != None:
             dirname = get_name(build_size)
@@ -197,7 +199,7 @@ class FaissRetrieverBuilder(object):
             self.build_size = np.minimum(build_size, self.metadata['num_emb'])
         logger.info(f'{self.build_size} data are used to build the db and index')
         if build_db:
-            self._build_db(map_size=map_size)
+            self._build_db(map_size=map_size, use_embeddings_as_values=use_embeddings_as_values)
         if build_index:
             self._build_index(
                 index_type=index_type, 
@@ -212,7 +214,7 @@ class FaissRetrieverBuilder(object):
                 self.metadata['num_emb'] = self.build_size
                 json.dump(self.metadata, fout)
     
-    def _build_db(self, map_size=200*1024*1024*1024):
+    def _build_db(self, map_size=200*1024*1024*1024, use_embeddings_as_values=False):
         logger.info(f'Build the database')
         if not os.path.exists(self.db_dir):
             os.makedirs(self.db_dir)
@@ -233,6 +235,11 @@ class FaissRetrieverBuilder(object):
                     txn.delete(key)
             db_size = 0
 
+        if not use_embeddings_as_values:
+            values = pickle.load(open(os.path.join(self.value_dir, 'value.pkl'), 'rb'))
+        else:
+            values = None
+
         emb_files = self.__get_embedding_files()
         for i, emb_file in enumerate(emb_files):
             # Load embeddings
@@ -240,13 +247,21 @@ class FaissRetrieverBuilder(object):
             # Store data to the database
             txn = env.begin(write=True)
             for j, row in df.iterrows():
-                txn.put(
-                    str(db_size).encode(),
-                    pickle.dumps({
-                        'text': row['text'],
-                        'embedding': row['embedding']
-                    })
-                )
+                if use_embeddings_as_values:
+                    txn.put(
+                        str(db_size).encode(),
+                        pickle.dumps({
+                            'text': row['text'],
+                            'embedding': row['embedding']
+                        })
+                    )
+                else:
+                    txn.put(
+                        str(db_size).encode(),
+                        pickle.dumps({
+                            'value': values[db_size],
+                        })
+                    )
                 db_size += 1
                 if db_size >= self.build_size:
                     break
@@ -429,6 +444,7 @@ if __name__ == '__main__':
     parser.add_argument('--index_type', type=str, default='IVF65536_HNSW32,PQ64')
     parser.add_argument('--metric_type', type=str, default='L2')
     parser.add_argument('--sub_index_size', type=int, default=10000)
+    parser.add_argument('--use_embeddings_as_values', action=argparse.BooleanOptionalAction)
     args = parser.parse_args()
     logger.info(f'Parameters {args}')
 
@@ -452,5 +468,6 @@ if __name__ == '__main__':
         max_train_size=args.max_train_size,
         train_ratio=args.train_ratio,
         least_num_train=args.least_num_train,
-        sub_index_size=args.sub_index_size
+        sub_index_size=args.sub_index_size,
+        use_embeddings_as_values=args.use_embeddings_as_values
     )
