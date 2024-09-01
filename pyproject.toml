@@ -1,0 +1,18 @@
+[project]
+name = "RetrieverLIB"
+version = "0.0.1"
+authors = [
+  { name="Shangyu Wu", email="shangyuwu1006@gmail.com" },
+]
+description = "A library for retriever"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/luffy06/retriever-lib"
+Issues = "https://github.com/luffy06/retriever-lib/issues"
