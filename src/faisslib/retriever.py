@@ -64,13 +64,14 @@ class FaissRetriever(object):
             neighbors = {}
             for neighbor_j in range(self.topk):
                 if ids[query_i][neighbor_j] != -1: # The neighbor is valid
+                    distance = distances[query_i][neighbor_j]
                     # Encode the database key
                     key = txn.get(str(ids[query_i][neighbor_j]).encode())
                     assert key != None, f'Cannot find key {ids[query_i][neighbor_j]}'
                     # Get the database value
                     value = pickle.loads(key)
                     if post_process_func != None: # Use the customized function to post-process the value
-                        neighbors = post_process_func(value, neighbors)
+                        neighbors = post_process_func(value, distance, neighbors)
                     else: # Use the default processing method
                         text = value['text'] if 'text' in value else None
                         if 'text' not in neighbors:
