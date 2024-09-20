@@ -1,5 +1,5 @@
 DEVICE=0
-PROJECT_DIR=$(dirname "$(dirname "$(realpath "$0")")")
+PROJECT_DIR=$(git rev-parse --show-toplevel)
 ENCODER_PATH=/root/autodl-tmp/wsy/models/gemma-2b
 IFS='/' read -ra ADDR <<< "$ENCODER_PATH"
 MODEL_NAME=${ADDR[-1]}

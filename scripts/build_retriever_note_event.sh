@@ -1,7 +1,7 @@
 DEVICE=0
 ENCODER_NAME=bert-large-uncased
 ENCODER_PATH=/mnt/wsy/models/$ENCODER_NAME
-PROJECT_DIR=$(dirname "$(dirname "$(realpath "$0")")")
+PROJECT_DIR=$(git rev-parse --show-toplevel)
 
 # Get embeddings
 CUDA_VISIBLE_DEVICES=$DEVICE \
