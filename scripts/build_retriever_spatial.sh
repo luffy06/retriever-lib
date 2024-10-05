@@ -3,7 +3,7 @@ DEVICE=1
 
 echo 'Prepare embeddings'
 CUDA_VISIBLE_DEVICES=$DEVICE \
-  python $PROJECT_DIR/src/preprocess/format_spatial.py \
+  python $PROJECT_DIR/src/preprocess/format_gene.py \
     --input_dir $1 \
     --output_dir $PROJECT_DIR/metadata/gene
 

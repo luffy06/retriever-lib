@@ -22,11 +22,9 @@ def main():
 
     img_path = os.path.join(args.input_dir, 'image_features.npy')
     gene_value_path = os.path.join(args.input_dir, 'gene_values.npy')
-    gene_name_path = os.path.join(args.input_dir, 'gene_symbol.txt')
 
     img_features = np.load(img_path)
     gene_values = np.load(gene_value_path)
-    gene_names = read_gene_name(gene_name_path)
 
     embeddings = np.array(img_features)
     df = pd.DataFrame({'embedding': embeddings.tolist()})
