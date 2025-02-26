@@ -9,6 +9,14 @@ The building workflow of this library includes the following steps,
 4. Build the retrieval index based on the embeddings;
 5. Build the retrieval database according to the task.
 
+## Environments
+
+```bash
+conda create -n retlib python=3.10
+conda activate retlib
+pip install -r requirements.txt
+```
+
 ## Corpus
 
 The corpus for retrievers can be any text, such as wikipedia data.
