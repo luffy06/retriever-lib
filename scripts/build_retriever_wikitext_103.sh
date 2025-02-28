@@ -1,7 +1,7 @@
 PROJECT_DIR=$(git rev-parse --show-toplevel)
 DEVICE=1
-ENCODER_NAME=bert-large-uncased
-ENCODER_PATH=$PROJECT_DIR/../models/$ENCODER_NAME
+ENCODER_PATH=google-bert/bert-base-uncased
+ENCODER_NAME=$(basename $ENCODER_PATH)
 SPLIT=all
 
 # Get embeddings
@@ -14,7 +14,11 @@ CUDA_VISIBLE_DEVICES=$DEVICE \
     --do_chunk \
     --do_encode \
     --num_chunks_per_file 100000 \
-    --batch_size 1024
+    --batch_size 256
+
+if [ ! -f $PROJECT_DIR/metadata/wikitext-103-$SPLIT-$ENCODER_NAME/$SPLIT/metadata.json ]; then
+  cp $PROJECT_DIR/metadata/wikitext-103-$SPLIT-$ENCODER_NAME/metadata.json $PROJECT_DIR/metadata/wikitext-103-$SPLIT-$ENCODER_NAME/$SPLIT/metadata.json
+fi
 
 echo 'Build DB and index based on wikitext-103 '$SPLIT' data'
 CUDA_VISIBLE_DEVICES=$DEVICE \

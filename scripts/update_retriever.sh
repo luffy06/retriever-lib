@@ -1,10 +1,9 @@
-DEVICE=0
 PROJECT_DIR=$(git rev-parse --show-toplevel)
-ENCODER_PATH=/root/autodl-tmp/wsy/models/gemma-2b
-IFS='/' read -ra ADDR <<< "$ENCODER_PATH"
-MODEL_NAME=${ADDR[-1]}
+ENCODER_PATH=google/gemma-2b
+MODEL_NAME=$(basename $ENCODER_PATH)
 SOURCE_PATH=$PROJECT_DIR/metadata/wikitext-103-all-bert-large-uncased
 TARGET_PATH=$PROJECT_DIR/metadata/wikitext-103-all-bert-large-uncased-$MODEL_NAME
+DEVICE=0
 
 CUDA_VISIBLE_DEVICES=$DEVICE \
   CUDA_LAUNCH_BLOCKING=1 \
