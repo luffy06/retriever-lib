@@ -12,29 +12,39 @@ if [[ ! -d $OUTPUT_DIR ]]; then
 fi
 
 if [[ ! -d $DATA_DIR/wikitext ]]; then
-    huggingface-cli download --repo-type dataset \
-        --resume-download Salesforce/wikitext \
-        --local-dir $DATA_DIR/wikitext
+    huggingface-cli download Salesforce/wikitext --repo-type dataset --local-dir $DATA_DIR/wikitext
 fi
 
 echo 'Format wikitext-103 (train)'
 if [[ ! -d $OUTPUT_DIR/wikitext-103/all ]]; then
     mkdir -p $OUTPUT_DIR/wikitext-103/all
 fi
-python $PY_DIR/format_wikitext.py \
+python $PY_DIR/format_parquet.py \
     --data_path $DATA_DIR/wikitext/wikitext-103-raw-v1/train-00000-of-00002.parquet \
                 $DATA_DIR/wikitext/wikitext-103-raw-v1/train-00001-of-00002.parquet \
     --output_path $OUTPUT_DIR/wikitext-103/all/wikitext103-train.json
 
 echo 'Format wikitext-103 (valid)'
-python $PY_DIR/format_wikitext.py \
+python $PY_DIR/format_parquet.py \
     --data_path $DATA_DIR/wikitext/wikitext-103-raw-v1/validation-00000-of-00001.parquet \
     --output_path $OUTPUT_DIR/wikitext-103/all/wikitext103-valid.json
 
 echo 'Format wikitext-103 (test)'
-python $PY_DIR/format_wikitext.py \
+python $PY_DIR/format_parquet.py \
     --data_path $DATA_DIR/wikitext/wikitext-103-raw-v1/test-00000-of-00001.parquet \
     --output_path $OUTPUT_DIR/wikitext-103/all/wikitext103-test.json
+
+if [[ ! -d $DATA_DIR/fineweb ]]; then
+    huggingface-cli download HuggingFaceFW/fineweb sample/10BT/000_00000.parquet --repo-type dataset --local-dir $DATA_DIR/fineweb
+fi
+
+echo 'Format fineweb'
+if [[ ! -d $OUTPUT_DIR/fineweb ]]; then
+    mkdir -p $OUTPUT_DIR/fineweb
+fi
+python $PY_DIR/format_parquet.py \
+    --data_path $DATA_DIR/fineweb/sample/10BT/000_00000.parquet \
+    --output_path $OUTPUT_DIR/fineweb/fineweb.json
 
 # This requries a lot of space, if you don't have enough space, you can skip this
 # if [[ ! -f $CACHE_DIR/downloads/data/wikipedia_split/psgs_w100.tsv ]];then
