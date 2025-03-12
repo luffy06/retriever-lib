@@ -43,8 +43,9 @@ def main():
     if not os.path.exists(value_dir):
         os.makedirs(value_dir)
     value_path = os.path.join(value_dir, 'value.pkl')
+    value_data = [(gene_value, img_feature) for gene_value, img_feature in zip(gene_values, img_features)]
     with open(value_path, 'wb') as file:
-        pickle.dump(gene_values, file)
+        pickle.dump(value_data, file)
 
 if __name__ == '__main__':
     main()
